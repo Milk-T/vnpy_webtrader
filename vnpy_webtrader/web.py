@@ -1,39 +1,25 @@
-from enum import Enum
-from typing import Any, List, Optional, Union
 import asyncio
 import json
-from datetime import datetime, timedelta
-from dataclasses import dataclass
 import secrets
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
+from typing import Any, List, Optional, Union
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status, Depends, Query
+from fastapi import (Depends, FastAPI, HTTPException, Query, WebSocket,
+                     WebSocketDisconnect, status)
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pathlib import Path
-
+from pydantic import BaseModel
 from vnpy.rpc import RpcClient
-from vnpy.trader.object import (
-    AccountData,
-    ContractData,
-    OrderData,
-    OrderRequest,
-    PositionData,
-    SubscribeRequest,
-    CancelRequest,
-    TickData,
-    TradeData
-)
-from vnpy.trader.constant import (
-    Exchange,
-    Direction,
-    OrderType,
-    Offset,
-)
-from vnpy.trader.utility import load_json, get_file_path
-
+from vnpy.trader.constant import Direction, Exchange, Offset, OrderType
+from vnpy.trader.object import (AccountData, CancelRequest, ContractData,
+                                OrderData, OrderRequest, PositionData,
+                                SubscribeRequest, TickData, TradeData)
+from vnpy.trader.utility import get_file_path, load_json
 
 # Web服务运行配置
 SETTING_FILENAME = "web_trader_setting.json"
@@ -157,6 +143,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
         data={"sub": web_username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.get("/apps")
+def get_all_apps() -> HTMLResponse:
+    return [app.app_name for app in rpc_client.get_all_apps()]
 
 
 @app.post("/tick/{vt_symbol}")
@@ -331,6 +322,9 @@ def startup_event() -> None:
     rpc_client.callback = rpc_callback
     rpc_client.subscribe_topic("")
     rpc_client.start(REQ_ADDRESS, SUB_ADDRESS)
+
+    from vnpy_algotrading.rpc import AlgoWebAPI
+    app.include_router(AlgoWebAPI(rpc_client))
 
 
 @app.on_event("shutdown")
