@@ -24,7 +24,7 @@ from pathlib import Path
 
 from vnpy.trader.app import BaseApp
 
-from .engine import WebEngine, APP_NAME
+from .engine import WebEngine, APP_NAME, rpc_handler
 
 
 class WebTraderApp(BaseApp):

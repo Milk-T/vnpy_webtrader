@@ -1,3 +1,7 @@
+from importlib import import_module
+from collections import defaultdict
+from typing import Callable, Dict, List
+
 from vnpy.rpc import RpcServer
 from vnpy.trader.engine import BaseEngine, MainEngine
 from vnpy.trader.event import (
@@ -8,7 +12,6 @@ from vnpy.trader.event import (
     EVENT_ACCOUNT
 )
 from vnpy.event import EventEngine, Event
-
 
 APP_NAME = "RpcService"
 
@@ -21,7 +24,9 @@ class WebEngine(BaseEngine):
         super().__init__(main_engine, event_engine, APP_NAME)
 
         self.server: RpcServer = RpcServer()
+        self.rpc_servers = {}
 
+        self.init_apps()
         self.init_server()
         self.register_event()
 
@@ -40,6 +45,17 @@ class WebEngine(BaseEngine):
         self.server.register(self.main_engine.get_all_positions)
         self.server.register(self.main_engine.get_all_accounts)
         self.server.register(self.main_engine.get_all_contracts)
+        self.server.register(self.main_engine.get_all_apps)
+
+    def init_apps(self) -> None:
+        all_apps: List[BaseApp] = self.main_engine.get_all_apps()
+        for app in all_apps:
+            rpc_module: ModuleType = import_module(app.app_module + ".rpc")
+            rpc_class = getattr(rpc_module, app.rpc_server)
+            rpc_server = rpc_class(self.main_engine, self.event_engine)
+            for handler in RpcServerHandler.get_handlers(rpc_server):
+                self.server.register(handler)
+            self.rpc_servers[app.app_name] = rpc_server
 
     def start_server(
         self,
@@ -68,3 +84,30 @@ class WebEngine(BaseEngine):
         """关闭"""
         self.server.stop()
         self.server.join()
+
+
+class RpcServerHandler:
+
+    def __init__(self, handler, handler_name=None):
+        handler.__rpc_handler__ = True
+        self.handler = handler
+        self.handler_name = handler_name or handler.__name__
+        setattr(handler, "__name__", self.handler_name)
+
+    def __get__(self, obj, objtype=None):
+        return self.handler.__get__(obj, objtype)
+
+    @staticmethod
+    def get_handlers(rpc_server_instance):
+        handlers = []
+        for attr_name in dir(rpc_server_instance):
+            attr = getattr(rpc_server_instance, attr_name)
+            if callable(attr) and hasattr(attr, "__rpc_handler__"):
+                handlers.append(attr)
+        return handlers
+
+
+def rpc_handler(handler_name=None):
+    def wrapper(handler):
+        return RpcServerHandler(handler, handler_name)
+    return wrapper
