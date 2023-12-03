@@ -34,6 +34,7 @@ from vnpy.trader.object import (
 from vnpy_rpcservice.rpc_service.engine import EVENT_RPC_LOG
 from vnpy.trader.event import EVENT_LOG
 from vnpy.trader.utility import get_file_path, load_json
+from vnpy_algotrading.engine import EVENT_ALGO_LOG, EVENT_ALGO_UPDATE
 
 # Web服务运行配置
 SETTING_FILENAME = "web_trader_setting.json"
@@ -91,7 +92,8 @@ def subscribe(vt_symbol: str) -> None:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    req: SubscribeRequest = SubscribeRequest(contract.symbol, contract.exchange)
+    req: SubscribeRequest = SubscribeRequest(
+        contract.symbol, contract.exchange)
     rpc_client.subscribe(req, contract.gateway_name)
 
 
@@ -228,6 +230,10 @@ def startup_event() -> None:
     rpc_client.subscribe_topic("")
     rpc_client.subscribe_topic(EVENT_LOG)
     rpc_client.subscribe_topic(EVENT_RPC_LOG)
+
+    rpc_client.subscribe_topic(EVENT_ALGO_LOG)
+    rpc_client.subscribe_topic(EVENT_ALGO_UPDATE)
+
     rpc_client.start(REQ_ADDRESS, SUB_ADDRESS)
 
     from vnpy_algotrading.rpc import AlgoWebAPI
